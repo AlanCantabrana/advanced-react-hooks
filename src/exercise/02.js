@@ -31,7 +31,7 @@ function pokemonInfoReducer(state, action) {
   }
 }
 
-function useAsync (asyncCallback, initialState, dependencies) {
+function useAsync (asyncCallback, initialState) {
 
   const [state, dispatch] = React.useReducer(pokemonInfoReducer, {
     status:'idle',
@@ -59,7 +59,7 @@ function useAsync (asyncCallback, initialState, dependencies) {
     // 🐨 you'll accept dependencies as an array and pass that here.
     // 🐨 because of limitations with ESLint, you'll need to ignore
     // the react-hooks/exhaustive-deps rule. We'll fix this in an extra credit.
-  }, dependencies)
+  }, [asyncCallback])
 
   return state
 }
@@ -73,14 +73,15 @@ function PokemonInfo({pokemonName}) {
 
   // -------------------------- start --------------------------
   // --------------------------- end ---------------------------
-
-  const initialState = {status:'idle', data: null, error: null}
-  const state = useAsync(() => {
+  const fetchDataCB = React.useCallback(() => {
     if (!pokemonName) {
       return
     }
     return fetchPokemon(pokemonName)
-  }, initialState, [pokemonName])
+  },[pokemonName])
+
+  const initialState = {status:'idle', data: null, error: null}
+  const state = useAsync( fetchDataCB,initialState)
   const {data, status, error} = state
 
   switch (status) {
