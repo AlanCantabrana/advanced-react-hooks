@@ -11,18 +11,38 @@ import {
 } from '../pokemon'
 
 // 🐨 this is going to be our generic asyncReducer
+
+function useSafeDispatch(dispatch) {
+  const mountedRef = React.useRef(false)
+
+  // to make this even more generic you should use the useLayoutEffect hook to
+  // make sure that you are correctly setting the mountedRef.current immediately
+  // after React updates the DOM. Even though this effect does not interact
+  // with the dom another side effect inside a useLayoutEffect which does
+  // interact with the dom may depend on the value being set
+  React.useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  return React.useCallback(
+    (...args) => (mountedRef.current ? dispatch(...args) : void 0),
+    [dispatch],
+  )
+}
+
 function pokemonInfoReducer(state, action) {
+  console.log(action)
   switch (action.type) {
     case 'pending': {
-      // 🐨 replace "pokemon" with "data"
       return {status: 'pending', data: null, error: null}
     }
     case 'resolved': {
-      // 🐨 replace "pokemon" with "data" (in the action too!)
       return {status: 'resolved', data: action.data, error: null}
     }
     case 'rejected': {
-      // 🐨 replace "pokemon" with "data"
       return {status: 'rejected', data: null, error: action.error}
     }
     default: {
@@ -31,37 +51,30 @@ function pokemonInfoReducer(state, action) {
   }
 }
 
-function useAsync (asyncCallback, initialState) {
+function useAsync (initialState) {
 
   const [state, dispatch] = React.useReducer(pokemonInfoReducer, {
     status:'idle',
-    // 🐨 this will need to be "data" instead of "pokemon"
     data: null,
     error: null,
     ...initialState
   })
 
-  React.useEffect(() => {
-    const promise = asyncCallback()
-    if (!promise) {
-      return
-    }
-    
-    dispatch({type: 'pending'})
+  const saveDispatch = useSafeDispatch(dispatch)
+
+  const run = React.useCallback((promise) => {
+    saveDispatch({type: 'pending'})
     promise.then(
       data => {
-        dispatch({type: 'resolved', data})
+        saveDispatch({type: 'resolved', data})
       },
       error => {
-        dispatch({type: 'rejected', error})
+        saveDispatch({type: 'rejected', error})
       },
     )
-    // 🐨 you'll accept dependencies as an array and pass that here.
-    // 🐨 because of limitations with ESLint, you'll need to ignore
-    // the react-hooks/exhaustive-deps rule. We'll fix this in an extra credit.
-  }, [asyncCallback])
+  }, [saveDispatch]);
 
-  return state
+  return {...state, run}
 }
 
 function PokemonInfo({pokemonName}) {
@@ -73,16 +86,18 @@ function PokemonInfo({pokemonName}) {
 
   // -------------------------- start --------------------------
   // --------------------------- end ---------------------------
-  const fetchDataCB = React.useCallback(() => {
+  
+
+  const state = useAsync({status: pokemonName ? 'pending' : 'idle'})
+  const {data, status, error, run} = state
+
+  React.useEffect(() => {
     if (!pokemonName) {
       return
     }
-    return fetchPokemon(pokemonName)
-  },[pokemonName])
-
-  const initialState = {status:'idle', data: null, error: null}
-  const state = useAsync( fetchDataCB,initialState)
-  const {data, status, error} = state
+    const promise = fetchPokemon(pokemonName)
+    run(promise)
+  },[pokemonName, run])
 
   switch (status) {
     case 'idle':
